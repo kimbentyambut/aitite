@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>check natin kung may skin cancer ka</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+    <style>
+        #inputImage {
+            max-width: 100%;
+            height: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>check natin kung may skin cancer ka</h1>
+    <input type="file" id="imageInput" accept="image/*">
+    <br>
+    <img id="inputImage" src="" alt="Input Image">
+    <br>
+    <button onclick="runInference()">Run Inference</button>
+    <pre id="output"></pre>
+
+    <script>
+        let model;
+
+        async function loadModel() {
+            // Load your model here
+            model = await tf.loadGraphModel('model/model.json');
+            console.log('Model loaded');
+        }
+
+        async function runInference() {
+    if (!model) {
+        console.error('Model not loaded');
+        return;
+    }
+
+    const imageElement = document.getElementById('inputImage');
+    if (!imageElement.src) {
+        console.error('No image loaded');
+        return;
+    }
+
+
+    const imageTensor = tf.browser.fromPixels(imageElement);
+    const inputShape = model.inputs[0].shape; // Get the expected input shape
+    const targetSize = [inputShape[1], inputShape[2]]; // Extract target width and height
+
+    const resizedImage = tf.image.resizeBilinear(imageTensor, targetSize); // Resize image to match model input
+    const normalizedImage = resizedImage.toFloat().div(tf.scalar(255.0));
+    const batchedImage = normalizedImage.expandDims(0);
+
+    // Run inference
+    const outputTensor = await model.executeAsync(batchedImage);
+
+    // Extract and map predictions
+    const predictions = await outputTensor.array(); // Convert tensor to array
+    const classNames = ['BCC', 'Melanoma', 'SQCC']; // Match these with your 'names' in metadata.yaml
+
+    // Get the class with the highest confidence score
+    const predictedIndex = predictions[0].indexOf(Math.max(...predictions[0]));
+    const predictedClass = classNames[predictedIndex];
+    const confidenceScore = predictions[0][predictedIndex];
+
+    // Display the prediction
+    const outputElement = document.getElementById('output');
+    outputElement.textContent = `Prediction: ${predictedClass} (Confidence: ${(confidenceScore * 100).toFixed(2)}%)`;
+}
+
+    
+
+        document.getElementById('imageInput').addEventListener('change', event => {
+            const file = event.target.files[0];
+            const reader = new FileReader();
+
+            reader.onload = e => {
+                document.getElementById('inputImage').src = e.target.result;
+            };
+
+            reader.readAsDataURL(file);
+        });
+
+        // Load model when page loads
+        loadModel();
+    </script>
+</body>
+</html>
